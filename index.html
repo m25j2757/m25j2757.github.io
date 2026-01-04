@@ -1,222 +1,226 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Ultimate Student Financial Tracker</title>
+  <title>Ultimate Student Financial Tracker Online</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: 'Segoe UI', Arial; background: #f0f4f8; margin: 0; padding: 20px; text-align: center; }
     h1 { color: #2a9d8f; margin-bottom: 20px; }
 
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      padding: 20px;
-      margin: 10px auto;
-      max-width: 600px;
-    }
-
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 20px; margin: 10px auto; max-width: 600px; }
     input, select, button { padding: 10px; margin: 5px; border-radius: 6px; border: 1px solid #ccc; }
     button { cursor: pointer; transition: 0.3s; }
     .inflow { background: #2a9d8f; color: #fff; border: none; }
     .inflow:hover { background: #21867a; }
     .outflow { background: #e76f51; color: #fff; border: none; }
     .outflow:hover { background: #c74b3a; }
-    .reset, .csv { background: #264653; color: #fff; border: none; }
-    .reset:hover, .csv:hover { background: #1e333f; }
-
+    .reset, .csv, .logout { background: #264653; color: #fff; border: none; }
+    .reset:hover, .csv:hover, .logout:hover { background: #1e333f; }
     #balance { font-weight: bold; font-size: 1.5em; margin: 20px 0; }
-
     ul { list-style: none; padding: 0; max-width: 600px; margin: 0 auto; }
     li { border-radius: 8px; padding: 10px; margin: 5px 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: transform 0.2s; }
     li:hover { transform: scale(1.02); }
-
     .incoming { background-color: #d4edda; color: #155724; }
     .outgoing { background-color: #f8d7da; color: #721c24; }
     .date { font-size: 0.8em; color: #555; margin-left: 10px; }
     button.delete { margin-left: 10px; background: #721c24; color: #fff; }
-
     canvas { max-width: 600px; margin: 30px auto; display: block; }
   </style>
 </head>
 <body>
 
-<h1>Ultimate Student Financial Tracker</h1>
+<h1>Ultimate Student Financial Tracker Online</h1>
 
-<div class="card">
-  <input type="text" id="desc" placeholder="Description">
-  <input type="number" id="amount" placeholder="Amount (RM)">
-  <select id="category">
-    <option value="Food">Food</option>
-    <option value="Transport">Transport</option>
-    <option value="Entertainment">Entertainment</option>
-    <option value="Others">Others</option>
-  </select>
-  <button class="inflow" onclick="addTransaction('inflow')">Inflow</button>
-  <button class="outflow" onclick="addTransaction('outflow')">Outflow</button>
+<div class="card" id="authCard">
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="login()">Login / Register</button>
 </div>
 
-<div class="card" id="balance">Balance: RM 0</div>
+<div id="app" style="display:none;">
+  <button class="logout" onclick="logout()">Logout</button>
+  <div class="card">
+    <input type="text" id="desc" placeholder="Description">
+    <input type="number" id="amount" placeholder="Amount (RM)">
+    <select id="category">
+      <option value="Food">Food</option>
+      <option value="Transport">Transport</option>
+      <option value="Entertainment">Entertainment</option>
+      <option value="Others">Others</option>
+    </select>
+    <button class="inflow" onclick="addTransaction('inflow')">Inflow</button>
+    <button class="outflow" onclick="addTransaction('outflow')">Outflow</button>
+  </div>
 
-<div class="card">
-  <label>Filter Category:</label>
-  <select id="filterCategory" onchange="filterCategory()">
-    <option value="All">All</option>
-    <option value="Food">Food</option>
-    <option value="Transport">Transport</option>
-    <option value="Entertainment">Entertainment</option>
-    <option value="Others">Others</option>
-  </select>
-  <button class="reset" onclick="resetAll()">Reset All</button>
-  <button class="csv" onclick="downloadCSV()">Download CSV</button>
-</div>
+  <div class="card" id="balance">Balance: RM 0</div>
 
-<ul id="list"></ul>
+  <div class="card">
+    <label>Filter Category:</label>
+    <select id="filterCategory" onchange="filterCategory()">
+      <option value="All">All</option>
+      <option value="Food">Food</option>
+      <option value="Transport">Transport</option>
+      <option value="Entertainment">Entertainment</option>
+      <option value="Others">Others</option>
+    </select>
+    <button class="reset" onclick="resetAll()">Reset All</button>
+    <button class="csv" onclick="downloadCSV()">Download CSV</button>
+  </div>
 
-<div class="card">
-  <h3>Category Pie Chart</h3>
-  <canvas id="pieChart"></canvas>
-</div>
+  <ul id="list"></ul>
 
-<div class="card">
-  <h3>Monthly Bar Chart</h3>
-  <canvas id="barChart"></canvas>
+  <div class="card">
+    <h3>Category Pie Chart</h3>
+    <canvas id="pieChart"></canvas>
+  </div>
+
+  <div class="card">
+    <h3>Monthly Bar Chart</h3>
+    <canvas id="barChart"></canvas>
+  </div>
 </div>
 
 <script>
-let balance = 0;
-let transactions = JSON.parse(localStorage.getItem("transactions") || "[]");
-let list = document.getElementById("list");
-let filter = "All";
-let pieChart, barChart;
+  // 🔹 Firebase config
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
 
-window.onload = function() {
-  renderList();
-  updateBalance();
-  updateCharts();
-}
+  let currentUser = null;
+  let transactions = [];
+  let filter = "All";
+  let pieChart, barChart;
 
-function addTransaction(type) {
-  let desc = document.getElementById("desc").value;
-  let amount = parseFloat(document.getElementById("amount").value);
-  let category = document.getElementById("category").value;
+  // 🔹 Login / Register
+  function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    auth.signInWithEmailAndPassword(email, password)
+      .then(userCred => initApp(userCred.user))
+      .catch(err => {
+        if(err.code === "auth/user-not-found") {
+          auth.createUserWithEmailAndPassword(email, password)
+            .then(userCred => initApp(userCred.user));
+        } else { alert(err.message); }
+      });
+  }
 
-  if(!desc || isNaN(amount)) { alert("Please fill all fields"); return; }
-  if(type === 'outflow') amount = -Math.abs(amount);
+  function initApp(user) {
+    currentUser = user;
+    document.getElementById("authCard").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    loadTransactions();
+  }
 
-  let date = new Date().toISOString();
-  let transaction = {desc, amount, category, date, type};
-  transactions.push(transaction);
-  localStorage.setItem("transactions", JSON.stringify(transactions));
+  function logout() {
+    auth.signOut().then(() => location.reload());
+  }
 
-  renderList();
-  updateBalance();
-  updateCharts();
-
-  document.getElementById("desc").value = "";
-  document.getElementById("amount").value = "";
-}
-
-function renderList() {
-  list.innerHTML = '';
-  transactions.filter(t => filter === "All" || t.category === filter).forEach(item => {
-    let li = document.createElement("li");
-    li.className = item.amount >= 0 ? 'incoming' : 'outgoing';
-    let dateDisplay = new Date(item.date).toLocaleString();
-    li.innerHTML = `${item.desc}: RM ${item.amount.toFixed(2)} (${item.category}) <span class="date">${dateDisplay}</span>`;
-
-    let btn = document.createElement("button");
-    btn.textContent = "Delete";
-    btn.className = "delete";
-    btn.onclick = function() { deleteTransaction(item); };
-
-    li.appendChild(btn);
-    list.appendChild(li);
-  });
-}
-
-function deleteTransaction(item) {
-  transactions = transactions.filter(t => t !== item);
-  localStorage.setItem("transactions", JSON.stringify(transactions));
-  renderList();
-  updateBalance();
-  updateCharts();
-}
-
-function updateBalance() {
-  balance = transactions.reduce((sum, t) => sum + t.amount, 0);
-  document.getElementById("balance").textContent = "Balance: RM " + balance.toFixed(2);
-}
-
-function updateCharts() {
-  // Pie chart
-  let categoryTotals = {};
-  transactions.forEach(t => {
-    if(!categoryTotals[t.category]) categoryTotals[t.category] = 0;
-    categoryTotals[t.category] += Math.abs(t.amount);
-  });
-
-  let pieCtx = document.getElementById('pieChart').getContext('2d');
-  if(pieChart) pieChart.destroy();
-  pieChart = new Chart(pieCtx, {
-    type: 'pie',
-    data: {
-      labels: Object.keys(categoryTotals),
-      datasets: [{ data: Object.values(categoryTotals), backgroundColor: ['#2a9d8f','#e76f51','#264653','#f4a261'] }]
-    },
-    options: { plugins: { legend: { position: 'bottom' } } }
-  });
-
-  // Monthly bar chart
-  let monthly = {};
-  transactions.forEach(t => {
-    let d = new Date(t.date);
-    let month = `${d.getFullYear()}-${("0"+(d.getMonth()+1)).slice(-2)}`;
-    monthly[month] = (monthly[month] || 0) + t.amount;
-  });
-
-  let barCtx = document.getElementById('barChart').getContext('2d');
-  if(barChart) barChart.destroy();
-  barChart = new Chart(barCtx, {
-    type: 'bar',
-    data: {
-      labels: Object.keys(monthly),
-      datasets: [{
-        label: 'Monthly (RM)',
-        data: Object.values(monthly),
-        backgroundColor: Object.values(monthly).map(v => v>=0?'#2a9d8f':'#e76f51')
-      }]
-    },
-    options: { plugins: { legend: { display: false } } }
-  });
-}
-
-function filterCategory() {
-  filter = document.getElementById("filterCategory").value;
-  renderList();
-}
-
-function resetAll() {
-  if(confirm("Are you sure you want to reset all transactions?")) {
-    transactions = [];
-    localStorage.setItem("transactions", JSON.stringify(transactions));
+  // 🔹 Transactions CRUD
+  async function loadTransactions() {
+    const snapshot = await db.collection("users").doc(currentUser.uid).collection("transactions").orderBy("date").get();
+    transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderList();
     updateBalance();
     updateCharts();
   }
-}
 
-function downloadCSV() {
-  let csv = "Description,Amount,Category,Type,Date\n";
-  transactions.forEach(t => {
-    csv += `"${t.desc}",${t.amount},"${t.category}","${t.type}","${t.date}"\n`;
-  });
-  let blob = new Blob([csv], {type: 'text/csv'});
-  let link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "transactions.csv";
-  link.click();
-}
+  async function addTransaction(type) {
+    const desc = document.getElementById("desc").value;
+    let amount = parseFloat(document.getElementById("amount").value);
+    const category = document.getElementById("category").value;
+
+    if(!desc || isNaN(amount)) { alert("Please fill all fields"); return; }
+    if(type==='outflow') amount = -Math.abs(amount);
+
+    const date = new Date().toISOString();
+    const docRef = await db.collection("users").doc(currentUser.uid).collection("transactions").add({desc, amount, category, type, date});
+    transactions.push({id: docRef.id, desc, amount, category, type, date});
+
+    renderList(); updateBalance(); updateCharts();
+    document.getElementById("desc").value = "";
+    document.getElementById("amount").value = "";
+  }
+
+  async function deleteTransaction(item) {
+    await db.collection("users").doc(currentUser.uid).collection("transactions").doc(item.id).delete();
+    transactions = transactions.filter(t => t.id!==item.id);
+    renderList(); updateBalance(); updateCharts();
+  }
+
+  async function resetAll() {
+    if(confirm("Are you sure you want to reset all transactions?")) {
+      const batch = db.batch();
+      transactions.forEach(t => batch.delete(db.collection("users").doc(currentUser.uid).collection("transactions").doc(t.id)));
+      await batch.commit();
+      transactions = [];
+      renderList(); updateBalance(); updateCharts();
+    }
+  }
+
+  function renderList() {
+    const list = document.getElementById("list");
+    list.innerHTML = '';
+    transactions.filter(t => filter==="All" || t.category===filter).forEach(item => {
+      const li = document.createElement("li");
+      li.className = item.amount>=0?'incoming':'outgoing';
+      li.innerHTML = `${item.desc}: RM ${item.amount.toFixed(2)} (${item.category}) <span class="date">${new Date(item.date).toLocaleString()}</span>`;
+      const btn = document.createElement("button");
+      btn.textContent = "Delete";
+      btn.className = "delete";
+      btn.onclick = () => deleteTransaction(item);
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+  }
+
+  function updateBalance() {
+    const bal = transactions.reduce((sum,t)=>sum+t.amount,0);
+    document.getElementById("balance").textContent = "Balance: RM "+bal.toFixed(2);
+  }
+
+  function updateCharts() {
+    // Pie chart
+    const categoryTotals = {};
+    transactions.forEach(t => { categoryTotals[t.category]=(categoryTotals[t.category]||0)+Math.abs(t.amount); });
+    const pieCtx = document.getElementById("pieChart").getContext("2d");
+    if(pieChart) pieChart.destroy();
+    pieChart = new Chart(pieCtx,{type:'pie',data:{labels:Object.keys(categoryTotals),datasets:[{data:Object.values(categoryTotals),backgroundColor:['#2a9d8f','#e76f51','#264653','#f4a261']}]},options:{plugins:{legend:{position:'bottom'}}}});
+
+    // Monthly bar chart
+    const monthly = {};
+    transactions.forEach(t => {
+      const d = new Date(t.date);
+      const month = `${d.getFullYear()}-${("0"+(d.getMonth()+1)).slice(-2)}`;
+      monthly[month]=(monthly[month]||0)+t.amount;
+    });
+    const barCtx = document.getElementById("barChart").getContext("2d");
+    if(barChart) barChart.destroy();
+    barChart = new Chart(barCtx,{type:'bar',data:{labels:Object.keys(monthly),datasets:[{label:'Monthly (RM)',data:Object.values(monthly),backgroundColor:Object.values(monthly).map(v=>v>=0?'#2a9d8f':'#e76f51')}]},options:{plugins:{legend:{display:false}}}});
+  }
+
+  function filterCategory() { filter = document.getElementById("filterCategory").value; renderList(); }
+
+  function downloadCSV() {
+    let csv = "Description,Amount,Category,Type,Date\n";
+    transactions.forEach(t=>{ csv+=`"${t.desc}",${t.amount},"${t.category}","${t.type}","${t.date}"\n`; });
+    const blob = new Blob([csv],{type:'text/csv'});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download="transactions.csv";
+    link.click();
+  }
 </script>
 
 </body>
