@@ -1,38 +1,76 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Advanced Financial Tracker</title>
+  <title>Student Financial Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial; background: #f5f5f5; padding: 20px; text-align: center; }
-    h1 { color: #2a9d8f; }
-    input, select, button { padding: 10px; margin: 5px; }
-    #balance { font-weight: bold; margin-top: 20px; }
-    ul { list-style-type: none; padding: 0; }
-    li { margin: 5px 0; }
-    button.delete { margin-left: 10px; color: red; cursor: pointer; }
-    canvas { max-width: 500px; margin: 20px auto; display: block; }
+    body { font-family: 'Segoe UI', Arial; background: #f0f4f8; margin: 0; padding: 20px; text-align: center; }
+    h1 { color: #2a9d8f; margin-bottom: 20px; }
+    
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin: 10px auto;
+      max-width: 500px;
+    }
+
+    input, select, button {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    button { background: #2a9d8f; color: #fff; border: none; cursor: pointer; transition: 0.3s; }
+    button:hover { background: #21867a; }
+
+    #balance { font-weight: bold; font-size: 1.5em; margin: 20px 0; }
+
+    ul { list-style: none; padding: 0; max-width: 500px; margin: 0 auto; }
+    li {
+      background: #fefefe;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 5px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      transition: transform 0.2s;
+    }
+    li:hover { transform: scale(1.02); }
+
+    .date { font-size: 0.8em; color: #555; margin-left: 10px; }
+    button.delete { margin-left: 10px; background: #e76f51; }
+
+    canvas { max-width: 500px; margin: 30px auto; display: block; }
   </style>
 </head>
 <body>
 
-<h1>Advanced Student Financial Tracker</h1>
+<h1>Student Financial Tracker</h1>
 
-<input type="text" id="desc" placeholder="Catatan">
-<input type="number" id="amount" placeholder="Jumlah (RM)">
-<select id="category">
-  <option value="Makan">Makan</option>
-  <option value="Transport">Transport</option>
-  <option value="Hiburan">Hiburan</option>
-  <option value="Lain-lain">Lain-lain</option>
-</select>
-<button onclick="addTransaction()">Tambah</button>
+<div class="card">
+  <input type="text" id="desc" placeholder="Catatan">
+  <input type="number" id="amount" placeholder="Jumlah (RM)">
+  <select id="category">
+    <option value="Makan">Makan</option>
+    <option value="Transport">Transport</option>
+    <option value="Hiburan">Hiburan</option>
+    <option value="Lain-lain">Lain-lain</option>
+  </select>
+  <button onclick="addTransaction()">Tambah</button>
+</div>
 
-<h2 id="balance">Baki: RM 0</h2>
+<div class="card" id="balance">Baki: RM 0</div>
 
 <ul id="list"></ul>
 
-<canvas id="chart"></canvas>
+<div class="card">
+  <canvas id="chart"></canvas>
+</div>
 
 <script>
 let balance = 0;
@@ -53,7 +91,8 @@ function addTransaction() {
 
   if(!desc || isNaN(amount)) { alert("Sila isi semua"); return; }
 
-  let transaction = {desc, amount, category};
+  let date = new Date().toLocaleString();
+  let transaction = {desc, amount, category, date};
   transactions.push(transaction);
   localStorage.setItem("transactions", JSON.stringify(transactions));
 
@@ -61,14 +100,13 @@ function addTransaction() {
   updateBalance();
   updateChart();
 
-  // Clear input
   document.getElementById("desc").value = "";
   document.getElementById("amount").value = "";
 }
 
 function addToList(item) {
   let li = document.createElement("li");
-  li.textContent = `${item.desc}: RM ${item.amount.toFixed(2)} (${item.category})`;
+  li.innerHTML = `${item.desc}: RM ${item.amount.toFixed(2)} (${item.category}) <span class="date">${item.date}</span>`;
 
   let btn = document.createElement("button");
   btn.textContent = "Delete";
@@ -110,11 +148,7 @@ function updateChart() {
         backgroundColor: ['#2a9d8f','#e76f51','#264653','#f4a261']
       }]
     },
-    options: {
-      plugins: {
-        legend: { position: 'bottom' }
-      }
-    }
+    options: { plugins: { legend: { position: 'bottom' } } }
   });
 }
 </script>
