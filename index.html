@@ -1,11 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Website Aku</title>
+  <title>Student Financial Tracker</title>
+  <style>
+    body { font-family: Arial; text-align: center; background: #f5f5f5; padding: 20px; }
+    h1 { color: #2a9d8f; }
+    input, button { padding: 10px; margin: 5px; }
+    #balance { font-weight: bold; margin-top: 20px; }
+    ul { list-style-type: none; padding: 0; }
+    li { margin: 5px 0; }
+  </style>
 </head>
 <body>
-  <h1>Student Financial Tracker</h1>
-<p>Website untuk urus duit pelajar</p>
-</body>
 
+<h1>Student Financial Tracker</h1>
+
+<input type="text" id="desc" placeholder="Masukkan catatan">
+<input type="number" id="amount" placeholder="Jumlah (RM)">
+<button onclick="addTransaction()">Tambah</button>
+
+<h2 id="balance">Baki: RM 0</h2>
+
+<ul id="list"></ul>
+
+<script>
+let balance = 0;
+let list = document.getElementById("list");
+
+function addTransaction() {
+  let desc = document.getElementById("desc").value;
+  let amount = parseFloat(document.getElementById("amount").value);
+  if(!desc || isNaN(amount)) { alert("Sila isi semua"); return; }
+
+  // Update list
+  let li = document.createElement("li");
+  li.textContent = desc + ": RM " + amount.toFixed(2);
+  list.appendChild(li);
+
+  // Update balance
+  balance += amount;
+  document.getElementById("balance").textContent = "Baki: RM " + balance.toFixed(2);
+
+  // Simpan ke LocalStorage
+  saveToLocalStorage(desc, amount);
+
+  // Clear input
+  document.getElementById("desc").value = "";
+  document.getElementById("amount").value = "";
+}
+
+function saveToLocalStorage(desc, amount) {
+  let data = JSON.parse(localStorage.getItem("transactions") || "[]");
+  data.push({desc, amount});
+  localStorage.setItem("transactions", JSON.stringify(data));
+}
+
+// Load saved transactions
+window.onload = function() {
+  let data = JSON.parse(localStorage.getItem("transactions") || "[]");
+  data.forEach(item => {
+    let li = document.createElement("li");
+    li.textContent = item.desc + ": RM " + item.amount.toFixed(2);
+    list.appendChild(li);
+    balance += item.amount;
+  });
+  document.getElementById("balance").textContent = "Baki: RM " + balance.toFixed(2);
+}
+</script>
+
+</body>
 </html>
