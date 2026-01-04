@@ -1,70 +1,121 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Student Financial Tracker</title>
+  <title>Advanced Financial Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial; text-align: center; background: #f5f5f5; padding: 20px; }
+    body { font-family: Arial; background: #f5f5f5; padding: 20px; text-align: center; }
     h1 { color: #2a9d8f; }
-    input, button { padding: 10px; margin: 5px; }
+    input, select, button { padding: 10px; margin: 5px; }
     #balance { font-weight: bold; margin-top: 20px; }
     ul { list-style-type: none; padding: 0; }
     li { margin: 5px 0; }
+    button.delete { margin-left: 10px; color: red; cursor: pointer; }
+    canvas { max-width: 500px; margin: 20px auto; display: block; }
   </style>
 </head>
 <body>
 
-<h1>Student Financial Tracker</h1>
+<h1>Advanced Student Financial Tracker</h1>
 
-<input type="text" id="desc" placeholder="Masukkan catatan">
+<input type="text" id="desc" placeholder="Catatan">
 <input type="number" id="amount" placeholder="Jumlah (RM)">
+<select id="category">
+  <option value="Makan">Makan</option>
+  <option value="Transport">Transport</option>
+  <option value="Hiburan">Hiburan</option>
+  <option value="Lain-lain">Lain-lain</option>
+</select>
 <button onclick="addTransaction()">Tambah</button>
 
 <h2 id="balance">Baki: RM 0</h2>
 
 <ul id="list"></ul>
 
+<canvas id="chart"></canvas>
+
 <script>
 let balance = 0;
+let transactions = JSON.parse(localStorage.getItem("transactions") || "[]");
 let list = document.getElementById("list");
+
+// Initialize
+window.onload = function() {
+  transactions.forEach(item => addToList(item));
+  updateBalance();
+  updateChart();
+}
 
 function addTransaction() {
   let desc = document.getElementById("desc").value;
   let amount = parseFloat(document.getElementById("amount").value);
+  let category = document.getElementById("category").value;
+
   if(!desc || isNaN(amount)) { alert("Sila isi semua"); return; }
 
-  // Update list
-  let li = document.createElement("li");
-  li.textContent = desc + ": RM " + amount.toFixed(2);
-  list.appendChild(li);
+  let transaction = {desc, amount, category};
+  transactions.push(transaction);
+  localStorage.setItem("transactions", JSON.stringify(transactions));
 
-  // Update balance
-  balance += amount;
-  document.getElementById("balance").textContent = "Baki: RM " + balance.toFixed(2);
-
-  // Simpan ke LocalStorage
-  saveToLocalStorage(desc, amount);
+  addToList(transaction);
+  updateBalance();
+  updateChart();
 
   // Clear input
   document.getElementById("desc").value = "";
   document.getElementById("amount").value = "";
 }
 
-function saveToLocalStorage(desc, amount) {
-  let data = JSON.parse(localStorage.getItem("transactions") || "[]");
-  data.push({desc, amount});
-  localStorage.setItem("transactions", JSON.stringify(data));
+function addToList(item) {
+  let li = document.createElement("li");
+  li.textContent = `${item.desc}: RM ${item.amount.toFixed(2)} (${item.category})`;
+
+  let btn = document.createElement("button");
+  btn.textContent = "Delete";
+  btn.className = "delete";
+  btn.onclick = function() { deleteTransaction(item, li); };
+
+  li.appendChild(btn);
+  list.appendChild(li);
 }
 
-// Load saved transactions
-window.onload = function() {
-  let data = JSON.parse(localStorage.getItem("transactions") || "[]");
-  data.forEach(item => {
-    let li = document.createElement("li");
-    li.textContent = item.desc + ": RM " + item.amount.toFixed(2);
-    list.appendChild(li);
-    balance += item.amount;
-  });
+function deleteTransaction(item, li) {
+  transactions = transactions.filter(t => t !== item);
+  localStorage.setItem("transactions", JSON.stringify(transactions));
+  li.remove();
+  updateBalance();
+  updateChart();
+}
+
+function updateBalance() {
+  balance = transactions.reduce((sum, t) => sum + t.amount, 0);
   document.getElementById("balance").textContent = "Baki: RM " + balance.toFixed(2);
+}
+
+function updateChart() {
+  let categoryTotals = {};
+  transactions.forEach(t => {
+    if(!categoryTotals[t.category]) categoryTotals[t.category] = 0;
+    categoryTotals[t.category] += t.amount;
+  });
+
+  let ctx = document.getElementById('chart').getContext('2d');
+  if(window.myChart) window.myChart.destroy();
+  window.myChart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: Object.keys(categoryTotals),
+      datasets: [{
+        data: Object.values(categoryTotals),
+        backgroundColor: ['#2a9d8f','#e76f51','#264653','#f4a261']
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
 }
 </script>
 
