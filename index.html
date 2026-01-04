@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Online Student Financial Tracker</title>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <title>Student Financial Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <style>
     body{font-family:'Segoe UI',Arial;background:#f0f4f8;margin:0;padding:20px;text-align:center;}
     h1{color:#2a9d8f;margin-bottom:20px;}
@@ -30,7 +29,7 @@
 </head>
 <body>
 
-<h1>Online Student Financial Tracker</h1>
+<h1>Student Financial Tracker</h1>
 
 <div class="card">
   <input type="text" id="desc" placeholder="Description">
@@ -41,23 +40,23 @@
     <option value="Entertainment">Entertainment</option>
     <option value="Others">Others</option>
   </select>
-  <button class="inflow" onclick="addTransaction('inflow')">Inflow</button>
-  <button class="outflow" onclick="addTransaction('outflow')">Outflow</button>
+  <button class="inflow">Inflow</button>
+  <button class="outflow">Outflow</button>
 </div>
 
 <div class="card" id="balance">Balance: RM 0</div>
 
 <div class="card">
   <label>Filter Category:</label>
-  <select id="filterCategory" onchange="filterCategory()">
+  <select id="filterCategory">
     <option value="All">All</option>
     <option value="Food">Food</option>
     <option value="Transport">Transport</option>
     <option value="Entertainment">Entertainment</option>
     <option value="Others">Others</option>
   </select>
-  <button class="reset" onclick="resetAll()">Reset All</button>
-  <button class="csv" onclick="downloadCSV()">Download CSV</button>
+  <button class="reset">Reset All</button>
+  <button class="csv">Download CSV</button>
 </div>
 
 <ul id="list"></ul>
@@ -77,108 +76,94 @@
   <canvas id="weekBarChart"></canvas>
 </div>
 
+<!-- 🌟 QR Code Section -->
+<div class="card">
+  <h3>Scan to open website</h3>
+  <canvas id="qrCanvas"></canvas>
+</div>
+
 <script>
-  // 🔹 Firebase config - paste your own config here
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
+let transactions = [];
+let filter = "All";
+let pieChart, barChart, weekBarChart;
 
-  let transactions = [];
-  let filter = "All";
-  let pieChart, barChart, weekBarChart;
+function renderAll(){ renderList(); updateBalance(); updateCharts(); }
 
-  window.onload = () => loadTransactions();
+function addTransaction(type){
+  const desc=document.getElementById("desc").value;
+  let amount=parseFloat(document.getElementById("amount").value);
+  const category=document.getElementById("category").value;
+  if(!desc || isNaN(amount)){ alert("Fill all fields"); return; }
+  if(type==='outflow') amount=-Math.abs(amount);
+  const date=new Date().toISOString();
+  transactions.push({desc,amount,category,type,date});
+  document.getElementById("desc").value="";
+  document.getElementById("amount").value="";
+  renderAll();
+}
 
-  // 🔹 Load all transactions from Firestore
-  async function loadTransactions(){
-    const snapshot = await db.collection("transactions").orderBy("date").get();
-    transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    renderAll();
-  }
+function renderList(){
+  const list=document.getElementById("list");
+  list.innerHTML='';
+  transactions.filter(t=>filter==="All"||t.category===filter).forEach(item=>{
+    const li=document.createElement("li");
+    li.className=item.amount>=0?'incoming':'outgoing';
+    li.innerHTML=`${item.desc}: RM ${item.amount.toFixed(2)} (${item.category}) <span class="date">${new Date(item.date).toLocaleString()}</span>`;
+    const btn=document.createElement("button"); btn.textContent="Delete"; btn.className="delete";
+    btn.onclick=()=>{transactions=transactions.filter(t=>t!==item); renderAll();}
+    li.appendChild(btn);
+    list.appendChild(li);
+  });
+}
 
-  // 🔹 Add transaction
-  async function addTransaction(type){
-    const desc = document.getElementById("desc").value;
-    let amount = parseFloat(document.getElementById("amount").value);
-    const category = document.getElementById("category").value;
-    if(!desc || isNaN(amount)){ alert("Please fill all fields"); return; }
-    if(type==='outflow') amount = -Math.abs(amount);
-    const date = new Date().toISOString();
-    const docRef = await db.collection("transactions").add({desc, amount, category, type, date});
-    transactions.push({id: docRef.id, desc, amount, category, type, date});
-    document.getElementById("desc").value="";
-    document.getElementById("amount").value="";
-    renderAll();
-  }
+function updateBalance(){
+  const bal=transactions.reduce((sum,t)=>sum+t.amount,0);
+  document.getElementById("balance").textContent="Balance: RM "+bal.toFixed(2);
+  document.getElementById("balance").style.color=bal<0?"red":"black";
+}
 
-  async function deleteTransaction(item){
-    await db.collection("transactions").doc(item.id).delete();
-    transactions = transactions.filter(t=>t.id!==item.id);
-    renderAll();
-  }
+function updateCharts(){
+  const categoryTotals={};
+  transactions.forEach(t=>{categoryTotals[t.category]=(categoryTotals[t.category]||0)+Math.abs(t.amount);});
+  const pieCtx=document.getElementById("pieChart").getContext("2d");
+  if(pieChart) pieChart.destroy();
+  pieChart=new Chart(pieCtx,{type:'pie',data:{labels:Object.keys(categoryTotals),datasets:[{data:Object.values(categoryTotals),backgroundColor:['#2a9d8f','#e76f51','#264653','#f4a261']}]},options:{plugins:{legend:{position:'bottom'}}}});
 
-  async function resetAll(){
-    if(confirm("Reset all transactions?")){
-      const batch = db.batch();
-      transactions.forEach(t => batch.delete(db.collection("transactions").doc(t.id)));
-      await batch.commit();
-      transactions=[];
-      renderAll();
-    }
-  }
+  const monthly={};
+  transactions.forEach(t=>{const d=new Date(t.date); const month=`${d.getFullYear()}-${("0"+(d.getMonth()+1)).slice(-2)}`; monthly[month]=(monthly[month]||0)+t.amount;});
+  const barCtx=document.getElementById("barChart").getContext("2d");
+  if(barChart) barChart.destroy();
+  barChart=new Chart(barCtx,{type:'bar',data:{labels:Object.keys(monthly),datasets:[{label:'Monthly (RM)',data:Object.values(monthly),backgroundColor:Object.values(monthly).map(v=>v>=0?'#2a9d8f':'#e76f51')}]},options:{plugins:{legend:{display:false}}}});
 
-  function renderAll(){ renderList(); updateBalance(); updateCharts(); }
+  const weekly={};
+  transactions.forEach(t=>{const d=new Date(t.date); const week=`${d.getFullYear()}-W${getWeekNumber(d)}`; weekly[week]=(weekly[week]||0)+t.amount;});
+  const weekCtx=document.getElementById("weekBarChart").getContext("2d");
+  if(weekBarChart) weekBarChart.destroy();
+  weekBarChart=new Chart(weekCtx,{type:'bar',data:{labels:Object.keys(weekly),datasets:[{label:'Weekly (RM)',data:Object.values(weekly),backgroundColor:Object.values(weekly).map(v=>v>=0?'#2a9d8f':'#e76f51')}]},options:{plugins:{legend:{display:false}}}});
+}
 
-  function renderList(){
-    const list = document.getElementById("list");
-    list.innerHTML='';
-    transactions.filter(t=>filter==="All"||t.category===filter).forEach(item=>{
-      const li=document.createElement("li");
-      li.className=item.amount>=0?'incoming':'outgoing';
-      li.innerHTML=`${item.desc}: RM ${item.amount.toFixed(2)} (${item.category}) <span class="date">${new Date(item.date).toLocaleString()}</span>`;
-      const btn=document.createElement("button"); btn.textContent="Delete"; btn.className="delete";
-      btn.onclick=()=>deleteTransaction(item);
-      li.appendChild(btn);
-      list.appendChild(li);
-    });
-  }
+function getWeekNumber(d){const oneJan=new Date(d.getFullYear(),0,1);return Math.ceil((((d-oneJan)/86400000)+oneJan.getDay()+1)/7);}
 
-  function updateBalance(){
-    const bal=transactions.reduce((sum,t)=>sum+t.amount,0);
-    document.getElementById("balance").textContent="Balance: RM "+bal.toFixed(2);
-    document.getElementById("balance").style.color = bal<0?"red":"black";
-  }
+// ✅ Event Listeners
+document.querySelector(".inflow").addEventListener("click",()=>addTransaction('inflow'));
+document.querySelector(".outflow").addEventListener("click",()=>addTransaction('outflow'));
+document.querySelector(".reset").addEventListener("click",()=>{if(confirm("Reset all transactions?")){transactions=[];renderAll();}});
+document.querySelector(".csv").addEventListener("click",()=>{
+  let csv="Description,Amount,Category,Type,Date\n";
+  transactions.forEach(t=>{csv+=`"${t.desc}",${t.amount},"${t.category}","${t.type}","${t.date}"\n`;});
+  const blob=new Blob([csv],{type:'text/csv'});
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);
+  link.download="transactions.csv";
+  link.click();
+});
+document.getElementById("filterCategory").addEventListener("change",()=>{filter=document.getElementById("filterCategory").value; renderList();});
 
-  function updateCharts(){
-    const categoryTotals={};
-    transactions.forEach(t=>{categoryTotals[t.category]=(categoryTotals[t.category]||0)+Math.abs(t.amount);});
-    const pieCtx=document.getElementById("pieChart").getContext("2d");
-    if(pieChart) pieChart.destroy();
-    pieChart=new Chart(pieCtx,{type:'pie',data:{labels:Object.keys(categoryTotals),datasets:[{data:Object.values(categoryTotals),backgroundColor:['#2a9d8f','#e76f51','#264653','#f4a261']}]},options:{plugins:{legend:{position:'bottom'}}}});
+// 🌟 Generate QR code for current page
+const canvas = document.getElementById("qrCanvas");
+QRCode.toCanvas(canvas, window.location.href, {width:200}, function (error) {if(error) console.error(error);});
 
-    const monthly={};
-    transactions.forEach(t=>{const d=new Date(t.date); const month=`${d.getFullYear()}-${("0"+(d.getMonth()+1)).slice(-2)}`; monthly[month]=(monthly[month]||0)+t.amount;});
-    const barCtx=document.getElementById("barChart").getContext("2d");
-    if(barChart) barChart.destroy();
-    barChart=new Chart(barCtx,{type:'bar',data:{labels:Object.keys(monthly),datasets:[{label:'Monthly (RM)',data:Object.values(monthly),backgroundColor:Object.values(monthly).map(v=>v>=0?'#2a9d8f':'#e76f51')}]},options:{plugins:{legend:{display:false}}}});
-
-    const weekly={};
-    transactions.forEach(t=>{const d=new Date(t.date); const week=`${d.getFullYear()}-W${getWeekNumber(d)}`; weekly[week]=(weekly[week]||0)+t.amount;});
-    const weekCtx=document.getElementById("weekBarChart").getContext("2d");
-    if(weekBarChart) weekBarChart.destroy();
-    weekBarChart=new Chart(weekCtx,{type:'bar',data:{labels:Object.keys(weekly),datasets:[{label:'Weekly (RM)',data:Object.values(weekly),backgroundColor:Object.values(weekly).map(v=>v>=0?'#2a9d8f':'#e76f51')}]},options:{plugins:{legend:{display:false}}}});
-  }
-
-  function getWeekNumber(d){const oneJan=new Date(d.getFullYear(),0,1);return Math.ceil((((d-oneJan)/86400000)+oneJan.getDay()+1)/7);}
-  function filterCategory(){filter=document.getElementById("filterCategory").value; renderList();}
-  function downloadCSV(){let csv="Description,Amount,Category,Type,Date\n"; transactions.forEach(t=>{csv+=`"${t.desc}",${t.amount},"${t.category}","${t.type}","${t.date}"\n`;}); const blob=new Blob([csv],{type:'text/csv'}); const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download="transactions.csv"; link.click();}
+renderAll();
 </script>
 
 </body>
