@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Student Financial Tracker</title>
+  <title>Student Financial Tracker In/Out</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: 'Segoe UI', Arial; background: #f0f4f8; margin: 0; padding: 20px; text-align: center; }
@@ -30,7 +30,6 @@
 
     ul { list-style: none; padding: 0; max-width: 500px; margin: 0 auto; }
     li {
-      background: #fefefe;
       border-radius: 8px;
       padding: 10px;
       margin: 5px 0;
@@ -42,6 +41,9 @@
     }
     li:hover { transform: scale(1.02); }
 
+    .incoming { background-color: #d4edda; color: #155724; }
+    .outgoing { background-color: #f8d7da; color: #721c24; }
+
     .date { font-size: 0.8em; color: #555; margin-left: 10px; }
     button.delete { margin-left: 10px; background: #e76f51; }
 
@@ -50,7 +52,7 @@
 </head>
 <body>
 
-<h1>Student Financial Tracker</h1>
+<h1>Student Financial Tracker In/Out</h1>
 
 <div class="card">
   <input type="text" id="desc" placeholder="Catatan">
@@ -91,8 +93,9 @@ function addTransaction() {
 
   if(!desc || isNaN(amount)) { alert("Sila isi semua"); return; }
 
+  let type = amount >= 0 ? "incoming" : "outgoing"; // positive = masuk, negative = keluar
   let date = new Date().toLocaleString();
-  let transaction = {desc, amount, category, date};
+  let transaction = {desc, amount, category, date, type};
   transactions.push(transaction);
   localStorage.setItem("transactions", JSON.stringify(transactions));
 
@@ -106,6 +109,7 @@ function addTransaction() {
 
 function addToList(item) {
   let li = document.createElement("li");
+  li.className = item.type;
   li.innerHTML = `${item.desc}: RM ${item.amount.toFixed(2)} (${item.category}) <span class="date">${item.date}</span>`;
 
   let btn = document.createElement("button");
@@ -144,7 +148,7 @@ function updateChart() {
     data: {
       labels: Object.keys(categoryTotals),
       datasets: [{
-        data: Object.values(categoryTotals),
+        data: Object.values(categoryTotals).map(v => Math.abs(v)), // guna abs value
         backgroundColor: ['#2a9d8f','#e76f51','#264653','#f4a261']
       }]
     },
