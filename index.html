@@ -1,34 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Student Financial Tracker</title>
+  <title>Student Financial Tracker v2</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body{font-family:'Segoe UI',Arial;background:#f0f4f8;margin:0;padding:20px;text-align:center;}
-    h1{color:#2a9d8f;margin-bottom:20px;}
-    .card{background:#fff;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:20px;margin:10px auto;max-width:600px;}
+    :root {
+      --bg-color:#f0f4f8;
+      --text-color:#222;
+      --card-bg:#fff;
+      --inflow:#2a9d8f;
+      --outflow:#e76f51;
+      --reset:#264653;
+    }
+    body.dark {--bg-color:#121212;--text-color:#eee;--card-bg:#1e1e1e;}
+    body{font-family:'Segoe UI',Arial;background:var(--bg-color);color:var(--text-color);margin:0;padding:20px;text-align:center;transition:0.3s;}
+    h1{color:var(--inflow);margin-bottom:20px;transition:0.3s;}
+    .card{background:var(--card-bg);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:20px;margin:10px auto;max-width:600px;transition:0.3s;}
+    .card:hover{transform:scale(1.02);}
     input,select,button{padding:10px;margin:5px;border-radius:6px;border:1px solid #ccc;}
     button{cursor:pointer;transition:0.3s;}
-    .inflow{background:#2a9d8f;color:#fff;border:none;}
+    .inflow{background:var(--inflow);color:#fff;border:none;}
     .inflow:hover{background:#21867a;}
-    .outflow{background:#e76f51;color:#fff;border:none;}
+    .outflow{background:var(--outflow);color:#fff;border:none;}
     .outflow:hover{background:#c74b3a;}
-    .reset,.csv{background:#264653;color:#fff;border:none;}
+    .reset,.csv{background:var(--reset);color:#fff;border:none;}
     .reset:hover,.csv:hover{background:#1e333f;}
-    #balance{font-weight:bold;font-size:1.5em;margin:20px 0;}
+    #balance{font-weight:bold;font-size:1.5em;margin:20px 0;transition:0.3s;}
     ul{list-style:none;padding:0;max-width:600px;margin:0 auto;}
-    li{border-radius:8px;padding:10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 6px rgba(0,0,0,0.05);transition:transform 0.2s;}
+    li{border-radius:8px;padding:10px;margin:5px 0;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 6px rgba(0,0,0,0.05);transition:0.3s;}
     li:hover{transform:scale(1.02);}
-    .incoming{background-color:#d4edda;color:#155724;}
-    .outgoing{background-color:#f8d7da;color:#721c24;}
-    .date{font-size:0.8em;color:#555;margin-left:10px;}
+    .incoming{background-color:#d4edda;color:#155724;transition:0.3s;}
+    .outgoing{background-color:#f8d7da;color:#721c24;transition:0.3s;}
+    .date{font-size:0.8em;color:#555;margin-left:10px;transition:0.3s;}
     button.delete{margin-left:10px;background:#721c24;color:#fff;}
     canvas{max-width:600px;margin:30px auto;display:block;}
+    .dark-toggle{background:#555;color:#fff;padding:10px 15px;border:none;border-radius:6px;margin-bottom:20px;cursor:pointer;transition:0.3s;}
+    .dark-toggle:hover{background:#333;}
   </style>
 </head>
 <body>
 
-<h1>Student Financial Tracker</h1>
+<h1>Student Financial Tracker v2</h1>
+
+<button class="dark-toggle">Toggle Dark Mode 🌙</button>
 
 <div class="card">
   <input type="text" id="desc" placeholder="Description">
@@ -88,6 +102,7 @@ function addTransaction(type){
   const category=document.getElementById("category").value;
   if(!desc || isNaN(amount)){ alert("Fill all fields"); return; }
   if(type==='outflow') amount=-Math.abs(amount);
+  if(type==='outflow' && Math.abs(amount)>=500) alert("Warning: High outflow!");
   const date=new Date().toISOString();
   transactions.push({desc,amount,category,type,date});
   document.getElementById("desc").value="";
@@ -111,8 +126,9 @@ function renderList(){
 
 function updateBalance(){
   const bal=transactions.reduce((sum,t)=>sum+t.amount,0);
-  document.getElementById("balance").textContent="Balance: RM "+bal.toFixed(2);
-  document.getElementById("balance").style.color=bal<0?"red":"black";
+  const balanceEl=document.getElementById("balance");
+  balanceEl.textContent="Balance: RM "+bal.toFixed(2);
+  balanceEl.style.color=bal<0?"red":"black";
 }
 
 function updateCharts(){
@@ -121,13 +137,13 @@ function updateCharts(){
   const pieCtx=document.getElementById("pieChart").getContext("2d");
   if(pieChart) pieChart.destroy();
   pieChart=new Chart(pieCtx,{type:'pie',data:{labels:Object.keys(categoryTotals),datasets:[{data:Object.values(categoryTotals),backgroundColor:['#2a9d8f','#e76f51','#264653','#f4a261']}]},options:{plugins:{legend:{position:'bottom'}}}});
-  
+
   const monthly={};
   transactions.forEach(t=>{const d=new Date(t.date); const month=`${d.getFullYear()}-${("0"+(d.getMonth()+1)).slice(-2)}`; monthly[month]=(monthly[month]||0)+t.amount;});
   const barCtx=document.getElementById("barChart").getContext("2d");
   if(barChart) barChart.destroy();
   barChart=new Chart(barCtx,{type:'bar',data:{labels:Object.keys(monthly),datasets:[{label:'Monthly (RM)',data:Object.values(monthly),backgroundColor:Object.values(monthly).map(v=>v>=0?'#2a9d8f':'#e76f51')}]},options:{plugins:{legend:{display:false}}}});
-  
+
   const weekly={};
   transactions.forEach(t=>{const d=new Date(t.date); const week=`${d.getFullYear()}-W${getWeekNumber(d)}`; weekly[week]=(weekly[week]||0)+t.amount;});
   const weekCtx=document.getElementById("weekBarChart").getContext("2d");
@@ -137,6 +153,7 @@ function updateCharts(){
 
 function getWeekNumber(d){const oneJan=new Date(d.getFullYear(),0,1);return Math.ceil((((d-oneJan)/86400000)+oneJan.getDay()+1)/7);}
 
+// ✅ Event Listeners
 document.querySelector(".inflow").addEventListener("click",()=>addTransaction('inflow'));
 document.querySelector(".outflow").addEventListener("click",()=>addTransaction('outflow'));
 document.querySelector(".reset").addEventListener("click",()=>{if(confirm("Reset all transactions?")){transactions=[];renderAll();}});
@@ -150,6 +167,11 @@ document.querySelector(".csv").addEventListener("click",()=>{
   link.click();
 });
 document.getElementById("filterCategory").addEventListener("change",()=>{filter=document.getElementById("filterCategory").value; renderList();});
+
+// 🌙 Dark Mode Toggle
+document.querySelector(".dark-toggle").addEventListener("click",()=>{
+  document.body.classList.toggle("dark");
+});
 
 renderAll();
 </script>
